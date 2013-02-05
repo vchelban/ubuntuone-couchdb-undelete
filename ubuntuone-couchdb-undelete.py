@@ -5,8 +5,8 @@ from optparse import OptionParser
 from oauth import oauth
 
 DBUS_BUS_NAME='com.ubuntu.sso'
-DBUS_CREDENTIALS_PATH='/credentials'
-DBUS_CREDENTIALS_IFACE='com.ubuntu.sso.ApplicationCredentials'
+DBUS_CREDENTIALS_PATH='/com/ubuntu/sso/credentials'
+DBUS_CREDENTIALS_IFACE='com.ubuntu.sso.CredentialsManagement'
 APP_NAME='Ubuntu One'
 
 APPLICATION_ANNOTATIONS='application_annotations'
@@ -77,7 +77,8 @@ class Application(object):
                             follow_name_owner_changes=True)
             proxy = dbus.Interface(object=obj,
                             dbus_interface=DBUS_CREDENTIALS_IFACE)
-            info = proxy.find_credentials(APP_NAME)
+            info2 = {}
+            info = proxy.find_credentials_sync(APP_NAME, info2)
 
             self.consumer = oauth.OAuthConsumer(info['consumer_key'],
                                                 info['consumer_secret'])
@@ -162,6 +163,10 @@ class Application(object):
 
             headers, content = self.client.request(url, "GET")
 
+            if headers['status'] == '503':
+                print "error %s" % headers['status']
+                return
+
             response = simplejson.loads(content)
             rows = response['rows']
 
@@ -180,13 +185,15 @@ class Application(object):
 
     def run_collect_handler(self, database, document):
         if database == 'notes':
-            lsr =  document['application_annotations']\
+            if (document.has_key('content')):
+               print str(document)
+               lsr =  document['application_annotations']\
                            ['Tomboy']\
                            ['last-sync-revision']
 
-            if self.fixup_tomboy_revision is None or \
+               if self.fixup_tomboy_revision is None or \
                     self.fixup_tomboy_revision < lsr:
-                self.fixup_tomboy_revision = lsr
+                  self.fixup_tomboy_revision = lsr
 
     def run_fixup_handler(self, database, document):
         if database == 'notes':
